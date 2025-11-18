@@ -285,3 +285,160 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+# ===================== ADMIN PANEL BLOKI ==========================
+
+# 🔧 ADMIN PANEL GA KIRISH
+@bot.message_handler(func=lambda m: m.text == "📊 Statistika" and str(m.from_user.id) == ADMIN_CHAT_ID)
+def admin_stats(message):
+    total_users = 0
+    total_orders = 0
+    total_stars_sold = 0
+
+    if redis_client:
+        for key in redis_client.scan_iter("user:*"):
+            total_users += 1
+        for key in redis_client.scan_iter("order:*"):
+            total_orders += 1
+            order = json.loads(redis_client.get(key))
+            total_stars_sold += order.get("stars_amount", 0)
+
+    text = (
+        "📊 <b>ADMIN STATISTIKA</b>\n\n"
+        f"👥 Foydalanuvchilar: <b>{total_users}</b>\n"
+        f"📦 Buyurtmalar: <b>{total_orders}</b>\n"
+        f"⭐ Sotilgan Stars: <b>{total_stars_sold}</b>\n\n"
+        "⚙ Quyidagidan birini tanlang:"
+    )
+
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("📦 Buyurtmalar", callback_data="admin_orders"),
+        InlineKeyboardButton("👥 Userlar", callback_data="admin_users")
+    )
+    markup.add(
+        InlineKeyboardButton("💳 Karta sozlamalari", callback_data="admin_cards")
+    )
+
+    bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="HTML")
+
+
+# 📦 BUYURTMALAR BLOKI
+@bot.callback_query_handler(func=lambda c: c.data == "admin_orders")
+def admin_orders(call):
+    text = "<b>📦 Buyurtmalar ro‘yxati</b>\n\n"
+
+    if not redis_client:
+        bot.send_message(call.message.chat.id, "❗ Redis yo‘q, buyurtmalarni olish imkonsiz")
+        return
+
+    orders = list(redis_client.scan_iter("order:*"))
+    if not orders:
+        bot.send_message(call.message.chat.id, "📭 Buyurtmalar yo‘q")
+        return
+
+    for key in orders[:20]:  # 20 ta buyurtma limit
+        order = json.loads(redis_client.get(key))
+        text += (
+            f"🆔 <b>{order['order_id']}</b>\n"
+            f"👤 @{order['telegram_username']}\n"
+            f"⭐ {order['stars_amount']} Stars\n"
+            f"💰 {order['price']} so‘m\n"
+            f"🎁 +{order['points']} ball\n"
+            f"⏰ {order['created_at']}\n"
+            "----------------------\n"
+        )
+
+    bot.send_message(call.message.chat.id, text, parse_mode="HTML")
+
+
+# 👥 USERLAR BLOKI
+@bot.callback_query_handler(func=lambda c: c.data == "admin_users")
+def admin_users(call):
+    text = "<b>👥 Foydalanuvchilar</b>\n\n"
+    count = 0
+
+    if redis_client:
+        for key in redis_client.scan_iter("user:*"):
+            user = json.loads(redis_client.get(key))
+            username = user.get("username", "no username")
+            text += f"👤 @{username} | ⭐ {user['total_stars']} Stars | 💰 {user['total_spent']} so‘m\n"
+            count += 1
+            if count >= 30:
+                break
+
+    bot.send_message(call.message.chat.id, text or "Foydalanuvchi yo‘q", parse_mode="HTML")
+
+
+# 💳 KARTA SOZLAMALARI MENYUSI
+@bot.callback_query_handler(func=lambda c: c.data == "admin_cards")
+def admin_cards(call):
+    current_card = redis_client.get("payment_card") if redis_client else "2202 2002 2020 2020"
+
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("➕ Karta qo‘shish", callback_data="add_card"),
+        InlineKeyboardButton("♻️ Kartani almashtirish", callback_data="change_card")
+    )
+    markup.add(InlineKeyboardButton("🔙 Orqaga", callback_data="admin_back"))
+
+    bot.send_message(
+        call.message.chat.id,
+        f"💳 <b>Karta sozlamalari</b>\n\n"
+        f"🔐 Joriy karta:\n<code>{current_card}</code>",
+        parse_mode="HTML",
+        reply_markup=markup
+    )
+
+
+# ➕ KARTA QO‘SHISH
+@bot.callback_query_handler(func=lambda c: c.data == "add_card")
+def add_card(call):
+    user_states[call.from_user.id] = {"step": "add_new_card"}
+
+    bot.send_message(call.message.chat.id, "💳 Yangi kartani kiriting (faqat raqam):")
+
+
+@bot.message_handler(func=lambda m: user_states.get(m.from_user.id, {}).get("step") == "add_new_card")
+def save_new_card(message):
+    card = message.text.strip().replace(" ", "")
+
+    if not card.isdigit() or len(card) not in [16]:
+        bot.send_message(message.chat.id, "❌ Karta raqami noto‘g‘ri. Qayta kiriting.")
+        return
+
+    if redis_client:
+        redis_client.set("payment_card", card)
+
+    user_states.pop(message.from_user.id, None)
+
+    bot.send_message(message.chat.id, f"✅ Yangi karta qo‘shildi:\n<code>{card}</code>", parse_mode="HTML")
+
+
+# ♻️ KARTANI ALMASHTIRISH
+@bot.callback_query_handler(func=lambda c: c.data == "change_card")
+def change_card(call):
+    user_states[call.from_user.id] = {"step": "change_card"}
+
+    bot.send_message(call.message.chat.id, "♻️ Yangi karta raqamini kiriting:")
+
+
+@bot.message_handler(func=lambda m: user_states.get(m.from_user.id, {}).get("step") == "change_card")
+def update_card(message):
+    card = message.text.strip().replace(" ", "")
+
+    if not card.isdigit() or len(card) != 16:
+        bot.send_message(message.chat.id, "❌ Karta formati noto‘g‘ri. Qayta kiriting.")
+        return
+
+    if redis_client:
+        redis_client.set("payment_card", card)
+
+    user_states.pop(message.from_user.id, None)
+
+    bot.send_message(message.chat.id, f"♻️ Karta yangilandi:\n<code>{card}</code>", parse_mode="HTML")
+
+
+# 🔙 ADMIN PANEL ORQAGA
+@bot.callback_query_handler(func=lambda c: c.data == "admin_back")
+def admin_back(call):
+    bot.send_message(call.message.chat.id, "🔙 Admin panelga qayting: 📊 Statistika tugmasi orqali")
