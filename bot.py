@@ -15,23 +15,23 @@ import redis
 
 load_dotenv()
 
-# Настройка логирования
+# Логlarni sozlash
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-logger = logging.getLogger(_name_)
+logger = logging.getLogger(__name__)
 
-# Конфигурация
+# Konfiguratsiya
 TOKEN = os.getenv("7810689974:AAHpifjmAG_tOwDvIGRNG4L1ah8mix38cWU")
 ADMIN_CHAT_ID = os.getenv("6498632307")
 SUPPORT_USERNAME = os.getenv("@kamron201", "@support")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-# Инициализация бота
+# Bot ishga tushirilishi
 bot = telebot.TeleBot(TOKEN)
 
-# Константы
+# Doimiylar
 class OrderStatus(Enum):
     PENDING = "pending"
     PAID = "paid"
@@ -43,7 +43,7 @@ class UserRole(Enum):
     USER = "user"
     ADMIN = "admin"
 
-# Конфигурация пакетов
+# Stars paketlari
 TELEGRAM_STARS_PACKAGES = {
     "buy_50": {"amount": 50, "price": 80, "points": 1, "discount": 0},
     "buy_75": {"amount": 75, "price": 130, "points": 2, "discount": 5},
@@ -54,7 +54,7 @@ TELEGRAM_STARS_PACKAGES = {
     "buy_1000": {"amount": 1000, "price": 1580, "points": 15, "discount": 30},
 }
 
-# Состояния для пользователей
+# Userlar holati
 user_states = {}
 
 class SecurityManager:
@@ -92,7 +92,7 @@ class DatabaseManager:
             self.update_user_data(user_id, default_data)
             return default_data
         except Exception as e:
-            logger.error(f"Error getting user data: {e}")
+            logger.error(f"Foydalanuvchini olishda xato: {e}")
             return self._get_default_user_data()
     
     def _get_default_user_data(self):
@@ -119,7 +119,7 @@ class DatabaseManager:
             current_data["last_activity"] = datetime.now().isoformat()
             self.redis_client.set(key, json.dumps(current_data), ex=86400*30)
         except Exception as e:
-            logger.error(f"Error updating user data: {e}")
+            logger.error(f"Yangilashda xato: {e}")
     
     def create_order(self, order_data: Dict) -> str:
         try:
@@ -136,16 +136,16 @@ class DatabaseManager:
             
             return order_id
         except Exception as e:
-            logger.error(f"Error creating order: {e}")
+            logger.error(f"Buyurtma yaratishda xato: {e}")
             return SecurityManager.generate_order_id()
 
-# Инициализация менеджеров
+# Managerlar
 db = DatabaseManager()
 
 def get_user_role(user_id: int) -> UserRole:
     return UserRole.ADMIN if str(user_id) == ADMIN_CHAT_ID else UserRole.USER
 
-# Базовые обработчики
+# Start handler
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     user_id = message.from_user.id
@@ -158,50 +158,52 @@ def start_handler(message):
     
     if user_role == UserRole.ADMIN:
         keyboard = [
-            [KeyboardButton("📊 Статистика"), KeyboardButton("📦 Заказы")],
-            [KeyboardButton("👥 Пользователи")]
+            [KeyboardButton("📊 Statistika"), KeyboardButton("📦 Buyurtmalar")],
+            [KeyboardButton("👥 Foydalanuvchilar")]
         ]
     else:
         keyboard = [
-            [KeyboardButton("🛒 Купить Stars"), KeyboardButton("👤 Профиль")],
-            [KeyboardButton("🆘 Поддержка")]
+            [KeyboardButton("🛒 Stars sotib olish"), KeyboardButton("👤 Profil")],
+            [KeyboardButton("🆘 Yordam")]
         ]
     
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
     welcome_text = (
-        f"🌟 Добро пожаловать, {message.from_user.first_name}!\n\n"
-        "⚡ <b>Telegram Stars Bot</b> - быстрая и надежная покупка Stars\n\n"
-        "✅ <b>Преимущества:</b>\n"
-        "• 🚀 Доставка: 1-6 часов\n"
-        "• 🎁 Бонусная система\n"
-        "• 💎 Гарантия доставки\n"
-        "• 🔒 Безопасные платежи\n\n"
-        "Выберите действие ниже 👇"
+        f"🌟 Xush kelibsiz, {message.from_user.first_name}!\n\n"
+        "⚡ <b>Telegram Stars bot</b> – Starsni tez va ishonchli sotib oling.\n\n"
+        "✅ <b>Afzalliklar:</b>\n"
+        "• 🚀 Yetkazib berish: 1–6 soat\n"
+        "• 🎁 Bonus tizimi\n"
+        "• 💎 Kafolatlangan yetkazib berish\n"
+        "• 🔒 Xavfsiz to‘lovlar\n\n"
+        "Quyidan amalni tanlang 👇"
     )
     
     bot.send_message(message.chat.id, welcome_text, reply_markup=reply_markup, parse_mode='HTML')
 
-@bot.message_handler(func=lambda message: message.text == "🛒 Купить Stars")
+# Stars paketlari
+@bot.message_handler(func=lambda message: message.text == "🛒 Stars sotib olish")
 def show_stars_packages(message):
     keyboard = []
     for key, package in TELEGRAM_STARS_PACKAGES.items():
         discount_text = f" 🔥 -{package['discount']}%" if package['discount'] > 0 else ""
-        button_text = f"{package['amount']} Stars - {package['price']} руб.{discount_text}"
+        button_text = f"{package['amount']} Stars - {package['price']} so‘m{discount_text}"
         keyboard.append([InlineKeyboardButton(button_text, callback_data=key)])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     info_text = (
-        "🎯 <b>Выберите количество Telegram Stars</b>\n\n"
-        "⚡ <b>Доставка:</b> 1-6 часов\n"
-        "💎 <b>Гарантия доставки</b>\n"
-        "🎁 <b>Бонусные очки</b> за каждую покупку!\n\n"
-        "🔥 <i>Скидки на крупные пакеты!</i>"
+        "🎯 <b>Stars paketini tanlang</b>\n\n"
+        "⚡ <b>Yetkazib berish:</b> 1–6 soat\n"
+        "💎 <b>Kafolatlangan xizmat</b>\n"
+        "🎁 <b>Har xaridga bonus ballar!</b>\n\n"
+        "🔥 <i>Katta paketlarda chegirmalar!</i>"
     )
     
     bot.send_message(message.chat.id, info_text, reply_markup=reply_markup, parse_mode='HTML')
 
+# Paketni tanlash
 @bot.callback_query_handler(func=lambda call: call.data.startswith('buy_'))
 def handle_package_selection(call):
     selected_package = TELEGRAM_STARS_PACKAGES.get(call.data)
@@ -213,31 +215,32 @@ def handle_package_selection(call):
         }
         
         order_text = (
-            f"🎯 <b>Вы выбрали:</b> {selected_package['amount']} Telegram Stars\n"
-            f"💰 <b>Сумма к оплате:</b> {selected_package['price']} руб.\n"
-            f"🎁 <b>Бонусные очки:</b> {selected_package['points']}\n"
+            f"🎯 <b>Siz tanladingiz:</b> {selected_package['amount']} Stars\n"
+            f"💰 <b>To‘lov summasi:</b> {selected_package['price']} so‘m\n"
+            f"🎁 <b>Bonus ballar:</b> {selected_package['points']}\n"
         )
         
         if selected_package['discount'] > 0:
-            order_text += f"🔥 <b>Скидка:</b> {selected_package['discount']}%\n"
+            order_text += f"🔥 <b>Chegirma:</b> {selected_package['discount']}%\n"
         
         order_text += (
-            "\n📝 <b>Отправьте ваш Telegram username (без @):</b>\n\n"
-            "⚠ <b>ВНИМАНИЕ:</b>\n"
-            "• Username должен быть публичным\n"
-            "• Убедитесь в правильности написания"
+            "\n📝 <b>Telegram usernamingizni yuboring ( @siz ):</b>\n\n"
+            "⚠ <b>DIQQAT:</b>\n"
+            "• Username ochiq bo‘lishi shart\n"
+            "• To‘g‘ri yozilganiga ishonch hosil qiling"
         )
         
         bot.edit_message_text(order_text, call.message.chat.id, call.message.message_id, parse_mode='HTML')
     else:
-        bot.edit_message_text("❌ Произошла ошибка. Пожалуйста, начните заново", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text("❌ Xatolik yuz berdi, qayta urinib ko‘ring", call.message.chat.id, call.message.message_id)
 
+# Username qabul qilish
 @bot.message_handler(func=lambda message: user_states.get(message.from_user.id, {}).get('step') == 'waiting_username')
 def handle_telegram_username(message):
     telegram_username = message.text.strip()
     
     if not SecurityManager.validate_user_input(telegram_username):
-        bot.send_message(message.chat.id, "❌ Некорректный username. Попробуйте еще раз:")
+        bot.send_message(message.chat.id, "❌ Username noto‘g‘ri. Qayta kiriting:")
         return
     
     telegram_username = telegram_username.replace('@', '')
@@ -247,19 +250,20 @@ def handle_telegram_username(message):
     user_state['step'] = 'waiting_payment'
     
     payment_info = (
-        f"✅ <b>Заказ создан!</b>\n\n"
+        f"✅ <b>Buyurtma yaratildi!</b>\n\n"
         f"• ⭐ Stars: {order['amount']}\n"
-        f"• 💰 Сумма: {order['price']} руб.\n"
-        f"• 👤 Ваш Telegram: @{telegram_username}\n"
-        f"• 🎁 Очков: {order['points']}\n\n"
-        f"💳 <b>Реквизиты для оплаты:</b>\n"
-        f"<code>2202 2002 2020 2020</code> - СБЕРБАНК\n\n"
-        f"📸 <b>После оплаты прикрепите скриншот чека</b>\n"
-        f"⚡ <b>Доставка:</b> 1-6 часов после проверки"
+        f"• 💰 To‘lov: {order['price']} so‘m\n"
+        f"• 👤 Sizning username: @{telegram_username}\n"
+        f"• 🎁 Ballar: {order['points']}\n\n"
+        f"💳 <b>To‘lov uchun karta:</b>\n"
+        f"<code>2202 2002 2020 2020</code>\n\n"
+        f"📸 <b>To‘lov chek rasmini yuboring</b>\n"
+        f"⚡ <b>Yetkazib berish:</b> 1–6 soat"
     )
     
     bot.send_message(message.chat.id, payment_info, parse_mode='HTML')
 
+# Chek rasmi
 @bot.message_handler(content_types=['photo'], 
                     func=lambda message: user_states.get(message.from_user.id, {}).get('step') == 'waiting_payment')
 def handle_payment_screenshot(message):
@@ -282,92 +286,95 @@ def handle_payment_screenshot(message):
         order_id = db.create_order(order_info)
         
         user_msg = (
-            f"📸 <b>Скриншот получен!</b>\n\n"
-            f"🆔 <b>Номер заказа:</b> #{order_id}\n"
-            f"⏱ <b>Статус:</b> Ожидает проверки\n"
-            f"🚚 <b>Доставка:</b> 1-6 часов\n\n"
-            f"Мы уведомим вас о смене статуса заказа."
+            f"📸 <b>Chek qabul qilindi!</b>\n\n"
+            f"🆔 <b>Buyurtma raqami:</b> #{order_id}\n"
+            f"⏱ <b>Status:</b> Tekshirilmoqda\n"
+            f"🚚 <b>Yetkazib berish:</b> 1–6 soat\n\n"
+            f"Status o‘zgarsa sizga xabar beramiz."
         )
         
         bot.send_message(message.chat.id, user_msg, parse_mode='HTML')
         
-        # Очищаем состояние пользователя
         user_states.pop(user_id, None)
         
     except Exception as e:
-        logger.error(f"Error processing payment: {e}")
-        bot.send_message(message.chat.id, "❌ Произошла ошибка при обработке заказа. Попробуйте еще раз.")
+        logger.error(f"To‘lovni qayta ishlashda xato: {e}")
+        bot.send_message(message.chat.id, "❌ Buyurtmani qayta ishlashda xato. Qayta urinib ko‘ring.")
         user_states.pop(user_id, None)
 
-@bot.message_handler(func=lambda message: message.text == "👤 Профиль")
+# Profil
+@bot.message_handler(func=lambda message: message.text == "👤 Profil")
 def show_profile(message):
     user_id = message.from_user.id
     user_data = db.get_user_data(user_id)
     
     total_spent = user_data.get('total_spent', 0)
     if total_spent >= 5000:
-        level = "💎 Платиновый"
+        level = "💎 Platina"
     elif total_spent >= 2000:
-        level = "🔥 Золотой"
+        level = "🔥 Oltin"
     elif total_spent >= 500:
-        level = "⚡ Серебряный"
+        level = "⚡ Kumush"
     else:
-        level = "🎯 Бронзовый"
+        level = "🎯 Bronza"
     
     profile_text = (
-        f"👤 <b>Ваш профиль</b>\n\n"
-        f"💎 <b>Уровень:</b> {level}\n"
-        f"⭐ <b>Куплено Stars:</b> {user_data.get('total_stars', 0)}\n"
-        f"💰 <b>Всего потрачено:</b> {user_data.get('total_spent', 0)} руб.\n"
-        f"🎯 <b>Накоплено очков:</b> {user_data.get('points', 0)}\n"
-        f"📦 <b>Заказов:</b> {user_data.get('orders_count', 0)}\n"
-        f"📅 <b>Регистрация:</b> {user_data.get('registration_date', 'N/A')[:16]}\n\n"
-        f"💡 Накопите очки и обменивайте их на Stars!"
+        f"👤 <b>Profilingiz</b>\n\n"
+        f"💎 <b>Daraja:</b> {level}\n"
+        f"⭐ <b>Sotib olingan Stars:</b> {user_data.get('total_stars', 0)}\n"
+        f"💰 <b>Jami sarflangan:</b> {user_data.get('total_spent', 0)} so‘m\n"
+        f"🎯 <b>Ballar:</b> {user_data.get('points', 0)}\n"
+        f"📦 <b>Buyurtmalar soni:</b> {user_data.get('orders_count', 0)}\n"
+        f"📅 <b>Ro‘yxatdan o‘tgan sana:</b> {user_data.get('registration_date', 'N/A')[:16]}\n\n"
+        f"💡 Ballarni yig‘ib Starsga almashtiring!"
     )
     
     bot.send_message(message.chat.id, profile_text, parse_mode='HTML')
 
-@bot.message_handler(func=lambda message: message.text == "🆘 Поддержка")
+# Yordam
+@bot.message_handler(func=lambda message: message.text == "🆘 Yordam")
 def show_support(message):
     support_text = (
-        f"🆘 <b>Поддержка</b>\n\n"
-        f"По всем вопросам обращайтесь:\n"
+        f"🆘 <b>Yordam markazi</b>\n\n"
+        f"Savollar bo‘lsa murojaat qiling:\n"
         f"👤 {SUPPORT_USERNAME}\n\n"
-        f"📞 <b>Мы поможем:</b>\n"
-        f"• С вопросами по заказам\n"
-        f"• С проблемами оплаты\n"
-        f"• С техническими неполадками"
+        f"📞 <b>Biz quyidagida yordam beramiz:</b>\n"
+        f"• Buyurtmalar bo‘yicha\n"
+        f"• To‘lovdagi muammolar bo‘yicha\n"
+        f"• Texnik nosozliklar bo‘yicha"
     )
     bot.send_message(message.chat.id, support_text, parse_mode='HTML')
 
+# Help
 @bot.message_handler(commands=['help'])
 def help_handler(message):
     help_text = (
-        "🤖 <b>Доступные команды:</b>\n\n"
-        "/start - Запустить бота\n"
-        "/help - Помощь\n"
-        "/cancel - Отменить текущее действие\n\n"
-        "📱 <b>Основные функции:</b>\n"
-        "• 🛒 Купить Stars - Выбор пакета Stars\n"
-        "• 👤 Профиль - Ваша статистика\n"
-        "• 🆘 Поддержка - Связь с поддержкой"
+        "🤖 <b>Mavjud buyruqlar:</b>\n\n"
+        "/start - Botni ishga tushirish\n"
+        "/help - Yordam\n"
+        "/cancel - Amaldagi jarayonni bekor qilish\n\n"
+        "📱 <b>Asosiy bo‘limlar:</b>\n"
+        "• 🛒 Stars sotib olish\n"
+        "• 👤 Profil\n"
+        "• 🆘 Yordam"
     )
     bot.send_message(message.chat.id, help_text, parse_mode='HTML')
 
+# Cancel
 @bot.message_handler(commands=['cancel'])
 def cancel_handler(message):
     user_id = message.from_user.id
     if user_id in user_states:
         user_states.pop(user_id)
-        bot.send_message(message.chat.id, "❌ Текущее действие отменено.")
+        bot.send_message(message.chat.id, "❌ Jarayon bekor qilindi.")
     else:
-        bot.send_message(message.chat.id, "❌ Нечего отменять.")
+        bot.send_message(message.chat.id, "❌ Bekor qiladigan jarayon yo‘q.")
 
-# Запуск бота
-if _name_ == '_main_':
-    print("🤖 Бот запускается...")
+# Botni ishga tushirish
+if __name__ == "__main__":
+    print("🤖 Bot ishga tushmoqda...")
     try:
         bot.infinity_polling()
     except Exception as e:
-        logger.error(f"Bot crashed: {e}")
-        print(f"❌ Ошибка: {e}")
+        logger.error(f"Bot ishdan chiqdi: {e}")
+        print(f"❌ Xato: {e}")
