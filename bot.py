@@ -23,9 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(_name_)
 
 # Конфигурация
-TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@support")
+TOKEN = os.getenv("7810689974:AAHpifjmAG_tOwDvIGRNG4L1ah8mix38cWU")
+ADMIN_CHAT_ID = os.getenv("6498632307")
+SUPPORT_USERNAME = os.getenv("@kamron201", "@support")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Инициализация бота
