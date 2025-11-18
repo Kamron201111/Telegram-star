@@ -23,9 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Konfiguratsiya
-TOKEN = os.getenv("7810689974:AAHpifjmAG_tOwDvIGRNG4L1ah8mix38cWU")
-ADMIN_CHAT_ID = os.getenv("6498632307")
-SUPPORT_USERNAME = os.getenv("@kamron201", "@support")
+TOKEN = "7810689974:AAHpifjmAG_tOwDvIGRNG4L1ah8mix38cWU"
+ADMIN_CHAT_ID = "6498632307"
+SUPPORT_USERNAME = "@kamron201"
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Bot ishga tushirilishi
@@ -72,7 +72,7 @@ class SecurityManager:
         return f"ORD{timestamp}{random_part}"
 
 class DatabaseManager:
-    def _init_(self):
+    def __init__(self):
         try:
             self.redis_client = redis.from_url(REDIS_URL, decode_responses=True)
         except:
